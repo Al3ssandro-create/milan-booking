@@ -32,6 +32,15 @@ export function useBookings() {
         // Already YYYY-MM-DD
         if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return str;
         
+        // DD/MM/YYYY format (Italian date from Google Sheets)
+        const ddmmyyyy = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+        if (ddmmyyyy) {
+          const day = ddmmyyyy[1].padStart(2, '0');
+          const month = ddmmyyyy[2].padStart(2, '0');
+          const year = ddmmyyyy[3];
+          return `${year}-${month}-${day}`;
+        }
+        
         // Italian format: "3 gen 2026" or "15 dic 2025"
         const italianMatch = str.match(/^(\d{1,2})\s+([a-z]{3})\s+(\d{4})$/i);
         if (italianMatch) {
