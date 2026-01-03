@@ -38,9 +38,12 @@ function App() {
       if (!prev.start) {
         return { start: date, end: null };
       }
-      // If start date exists but no end, and new date is after start
-      if (!prev.end && date > prev.start) {
-        return { start: prev.start, end: date };
+      // If start date exists but no end, and new date is same or after start
+      if (!prev.end && date >= prev.start) {
+        // For single-night: checkOut = day after checkIn
+        const checkOut = new Date(date);
+        checkOut.setDate(checkOut.getDate() + 1);
+        return { start: prev.start, end: checkOut };
       }
       // Otherwise, start a new selection
       return { start: date, end: null };

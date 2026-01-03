@@ -18,16 +18,35 @@ export function useBookings() {
       const response = await fetch(SHEETDB_API);
       if (!response.ok) throw new Error('Failed to load bookings');
       const data = await response.json();
-      // SheetDB returns array directly. Normalize date fields — Google Sheets may return
-      // dates as serial numbers (e.g. "46017"). Convert serial -> JS date -> YYYY-MM-DD.
+      // SheetDB returns array directly. Normalize date fields to YYYY-MM-DD.
+      // Handles: Italian format "3 gen 2026", serial numbers, ISO dates
+      const italianMonths: Record<string, number> = {
+        'gen': 0, 'feb': 1, 'mar': 2, 'apr': 3, 'mag': 4, 'giu': 5,
+        'lug': 6, 'ago': 7, 'set': 8, 'ott': 9, 'nov': 10, 'dic': 11
+      };
+      
       const normalizeDate = (val: any): string => {
         if (val == null) return '';
-        // already YYYY-MM-DD
-        if (typeof val === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(val)) return val;
-        // numeric serial in string or number
-        if (typeof val === 'number' || (typeof val === 'string' && /^\d+$/.test(val))) {
-          const serial = Number(val);
-          // Excel/Sheets serial -> JS Date: serial days since 1899-12-30 (Excel epoch)
+        const str = String(val).trim();
+        
+        // Already YYYY-MM-DD
+        if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return str;
+        
+        // Italian format: "3 gen 2026" or "15 dic 2025"
+        const italianMatch = str.match(/^(\d{1,2})\s+([a-z]{3})\s+(\d{4})$/i);
+        if (italianMatch) {
+          const day = parseInt(italianMatch[1], 10);
+          const monthStr = italianMatch[2].toLowerCase();
+          const year = parseInt(italianMatch[3], 10);
+          const month = italianMonths[monthStr];
+          if (month !== undefined) {
+            return `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+          }
+        }
+        
+        // Numeric serial (Excel/Sheets epoch)
+        if (/^\d+$/.test(str)) {
+          const serial = Number(str);
           const ms = (serial - 25569) * 86400 * 1000;
           const d = new Date(ms);
           const y = d.getFullYear();
@@ -35,9 +54,10 @@ export function useBookings() {
           const dd = String(d.getDate()).padStart(2, '0');
           return `${y}-${m}-${dd}`;
         }
-        // fallback: try parse ISO
+        
+        // Fallback: try parse as date
         try {
-          const parsed = new Date(String(val));
+          const parsed = new Date(str);
           if (!isNaN(parsed.getTime())) {
             const y = parsed.getFullYear();
             const m = String(parsed.getMonth() + 1).padStart(2, '0');
@@ -47,7 +67,7 @@ export function useBookings() {
         } catch {
           // ignore
         }
-        return String(val);
+        return str;
       };
       const normalized = (data || []).map((b: any) => ({
         ...b,
@@ -140,23 +160,8 @@ export function useBookings() {
       };
 
       try {
-        // Save to SheetDB - include human-readable display fields so the sheet isn't numeric
-        const formatDisplay = (iso: string) => {
-          try {
-            const d = new Date(iso + 'T00:00:00');
-            return d.toLocaleDateString('it-IT', { day: 'numeric', month: 'short', year: 'numeric' });
-          } catch {
-            return iso;
-          }
-        };
-
-        const payloadItem: any = {
-          ...newBooking,
-          checkInDisplay: formatDisplay(newBooking.checkIn),
-          checkOutDisplay: formatDisplay(newBooking.checkOut),
-        };
-
-        const payload = { data: [payloadItem] };
+        // Dates are already in YYYY-MM-DD format, send as-is
+        const payload = { data: [newBooking] };
         console.log('Sending to SheetDB:', JSON.stringify(payload, null, 2));
         
         const response = await fetch(SHEETDB_API, {

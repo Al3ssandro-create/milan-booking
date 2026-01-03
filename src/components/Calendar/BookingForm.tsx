@@ -32,6 +32,17 @@ export function BookingForm({ selectedRange, onSubmit, onClearSelection }: Booki
     });
   };
 
+  const formatDateHuman = (isoDate: string): string => {
+    // Parse YYYY-MM-DD without timezone shift
+    const [y, m, d] = isoDate.split('-').map(Number);
+    const date = new Date(y, m - 1, d);
+    return date.toLocaleDateString('it-IT', {
+      weekday: 'short',
+      day: 'numeric',
+      month: 'short',
+    });
+  };
+
   const formatDateISO = (date: Date): string => {
     // Use local date components to avoid UTC offset shifting the day
     const y = date.getFullYear();
@@ -95,7 +106,7 @@ export function BookingForm({ selectedRange, onSubmit, onClearSelection }: Booki
           </h3>
           <p className="text-[#1A1A1A]/60 text-sm sm:text-base mb-6">
             {success.guestName}<br />
-            <span className="text-xs sm:text-sm">{success.checkIn} → {success.checkOut}</span>
+            <span className="text-xs sm:text-sm">{formatDateHuman(success.checkIn)} → {formatDateHuman(success.checkOut)}</span>
           </p>
 
           {success.note && (
@@ -151,7 +162,7 @@ export function BookingForm({ selectedRange, onSubmit, onClearSelection }: Booki
 
       {!hasSelection && (
         <p className="text-sm text-[#1A1A1A]/50 italic mb-6">
-          ← Seleziona le date dal calendario (clicca check-in, poi check-out)
+          ← Seleziona le date dal calendario (clicca check-in, poi la sera in cui te ne vai)
         </p>
       )}
 

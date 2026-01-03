@@ -60,34 +60,44 @@ export function MonthView({
     return days;
   }, [year, month]);
 
+  const asYmd = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
   const getBookingForDate = (date: Date): Booking | null => {
-    const y = date.getFullYear();
-    const m = String(date.getMonth() + 1).padStart(2, '0');
-    const d = String(date.getDate()).padStart(2, '0');
-    const dateStr = `${y}-${m}-${d}`;
+    const dateStr = asYmd(date);
     return bookings.find((b) => dateStr >= b.checkIn && dateStr < b.checkOut) || null;
   };
 
+  // Check if a booking starts on this exact date (checkout is allowed on check-in day of another booking)
+  const isBookingStartDate = (date: Date): boolean => {
+    const dateStr = asYmd(date);
+    return bookings.some((b) => b.checkIn === dateStr);
+  };
+
+  // selectedRange.end is the checkout date (day AFTER last night)
+  // Visual range should show check-in through last night (end - 1 day)
   const isInSelectedRange = (date: Date): boolean => {
     if (!selectedRange.start) return false;
-    const asYmd = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
     const ds = asYmd(date);
     const start = asYmd(selectedRange.start);
     if (!selectedRange.end) return ds === start;
-    const end = asYmd(selectedRange.end);
-    return ds >= start && ds <= end;
+    // Last night = checkout - 1 day
+    const lastNight = new Date(selectedRange.end);
+    lastNight.setDate(lastNight.getDate() - 1);
+    const lastNightStr = asYmd(lastNight);
+    return ds >= start && ds <= lastNightStr;
   };
 
   const isRangeStart = (date: Date): boolean => {
     if (!selectedRange.start) return false;
-    const asYmd = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
     return asYmd(selectedRange.start) === asYmd(date);
   };
 
   const isRangeEnd = (date: Date): boolean => {
     if (!selectedRange.end) return false;
-    const asYmd = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-    return asYmd(selectedRange.end) === asYmd(date);
+    // Visual end = last night (checkout - 1 day)
+    const lastNight = new Date(selectedRange.end);
+    lastNight.setDate(lastNight.getDate() - 1);
+    return asYmd(lastNight) === asYmd(date);
   };
 
   const today = new Date();
@@ -146,10 +156,15 @@ export function MonthView({
           const isEnd = isRangeEnd(date);
           const showName = booking && (hoveredBookingId === booking.id || touchedBookingId === booking.id);
 
+          // Allow selecting checkout on a day where another booking starts
+          const canSelectForCheckout = selectedRange.start && !selectedRange.end && 
+            date >= selectedRange.start && isBookingStartDate(date);
+          const isClickable = !isPast && (!booking || canSelectForCheckout);
+
           return (
             <button
               key={index}
-              onClick={() => !isPast && !booking && onDateSelect(date)}
+              onClick={() => isClickable && onDateSelect(date)}
               onMouseEnter={() => booking && setHoveredBookingId(booking.id)}
               onMouseLeave={() => setHoveredBookingId(null)}
               onTouchStart={() => booking && setTouchedBookingId(booking.id)}
